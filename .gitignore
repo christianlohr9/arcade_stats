@@ -1,0 +1,39 @@
+# R specific
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# renv specific
+renv/library/
+renv/local/
+renv/cellar/
+renv/lock/
+renv/python/
+renv/staging/
+
+# Shiny specific
+rsconnect/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*~
+*.tmp
+*.temp
+
+# Email config (sensitive)
+email_config.json
+
+# Large data files (optional - you can remove this if you want data in repo)
+data/*.rds
