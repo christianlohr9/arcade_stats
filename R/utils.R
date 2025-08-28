@@ -2,15 +2,15 @@ load_base_stats_act <- function(years){
   
   years_short <- stringr::str_sub(years,start= -2)
 
-  pbp <- nflfastR::load_pbp(years)
-  weekly <- nflfastR::calculate_stats(pbp, summary_level = "week")
-  weekly_def <- nflfastR::calculate_stats_def(pbp, summary_level = "week")
+  #pbp <- nflfastR::load_pbp(years)
+  weekly <- nflfastR::calculate_stats(years, summary_level = "week", stat_type = "player")
+  #weekly_def <- nflfastR::calculate_stats_def(pbp, summary_level = "week")
 
   saveRDS(weekly, glue::glue("data/weekly_{years_short}.rds"))
-  saveRDS(weekly_def, glue::glue("data/weekly_def_{years_short}.rds"))
+  #saveRDS(weekly_def, glue::glue("data/weekly_def_{years_short}.rds"))
 
   ### SNAPS #####
-  year <- 2024
+  
   get_snaps <- function(year){
     raw <- nflreadr::load_snap_counts(year)
     content <- raw |>
@@ -36,19 +36,16 @@ load_base_stats_act <- function(years){
   all_snaps <- dplyr::bind_rows(
     readRDS("data/all_snaps_12-22.rds"),
     readRDS("data/all_snaps_23.rds"),
-    readRDS("data/all_snaps_24.rds")
+    readRDS("data/all_snaps_24.rds"),
+    readRDS("data/all_snaps_25.rds")
   )
   weekly <- dplyr::bind_rows(
     readRDS("data/weekly_99-22.rds"),
     readRDS("data/weekly_23.rds"),
-    readRDS("data/weekly_24.rds")
+    readRDS("data/weekly_24.rds"),
+    readRDS("data/weekly_25.rds")
   )
-  weekly_def <- dplyr::bind_rows(
-    readRDS("data/weekly_def_99-22.rds"),
-    readRDS("data/weekly_def_23.rds"),
-    readRDS("data/weekly_def_24.rds")
-  )
-
+  
   weekly_join <- weekly |>
     dplyr::left_join(nflfastR::fast_scraper_roster(1999:max(years)) |> dplyr::select(player_id=gsis_id,season,position,sleeper_id) |> dplyr::distinct()) |>
     dplyr::left_join(all_snaps |>
@@ -90,14 +87,14 @@ load_base_stats_act <- function(years){
            season = as.factor(season),
            week = as.factor(week),
            position = as.factor(as.character(position)),
-           recent_team = as.factor(as.character(recent_team))
+           team = as.factor(as.character(team))
     )
 
   saveRDS(weekly_join, "data/weekly_stats.rds")
 
   ### DEFENSE ###
 
-  weekly_join_def <- weekly_def |>
+  weekly_join_def <- weekly |>
     dplyr::left_join(nflfastR::fast_scraper_roster(1999:max(years)) |> dplyr::select(player_id=gsis_id,season,pff_id,sleeper_id,espn_id) |> dplyr::distinct()) |>
     dplyr::left_join(ffscrapr::espn_players() |> dplyr::mutate(espn_id=as.character(player_id)) |> dplyr::select(espn_id,pos) |> dplyr::distinct()) |>
     dplyr::mutate(position = pos) |>
@@ -106,15 +103,15 @@ load_base_stats_act <- function(years){
            season = as.factor(season),
            week = as.factor(week),
            position = as.factor(as.character(position)),
-           recent_team = as.factor(as.character(team)),
+           team = as.factor(as.character(team)),
            fantasy_points_ppr =
-             -4 * (def_fumbles)+-0.5 * (def_sacks)+-0.2 * (def_penalty_yards) +
-             0.15 * (def_fumble_recovery_yards_opp + def_fumble_recovery_yards_own) +
+             -4 * (def_fumbles)+-0.5 * (def_sacks)+-0.2 * (penalty_yards) +
+             0.15 * (fumble_recovery_yards_opp + fumble_recovery_yards_own) +
              0.2 * (def_sack_yards) +
              1 * (def_qb_hits) +
-             2 * (def_tackles_for_loss + def_safety) +
-             4 * (def_fumble_recovery_own) +
-             5 * (def_fumble_recovery_opp + def_tds) +
+             2 * (def_tackles_for_loss + def_safeties) +
+             4 * (fumble_recovery_own) +
+             5 * (fumble_recovery_opp + def_tds) +
              6 * (def_fumbles_forced + def_interceptions) +
              dplyr::case_when(
                position %in% c("DT", "DE", "LB") ~ 3 * def_pass_defended,
