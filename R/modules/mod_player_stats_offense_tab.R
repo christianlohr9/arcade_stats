@@ -37,7 +37,7 @@ mod_player_stats_offense_tab_ui <- function(id) {
     column(3,pickerInput(ns("season_tbl_off"),
       label = "Choose a Season",
       choices = 1999:lubridate::year(lubridate::today()),
-      selected = ifelse(yday(lubridate::today())>=240,lubridate::year(lubridate::today()),lubridate::year(lubridate::today())-1),
+      selected = ifelse(yday(lubridate::today())>=250,lubridate::year(lubridate::today()),lubridate::year(lubridate::today())-1),
       multiple = TRUE)
     )),
     fluidRow(column(3,
@@ -104,7 +104,7 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
 
       league_data <- reactive({
         weekly_join |> 
-          select("headshot_url","player_id","sleeper_id","player_name"="player_display_name","recent_team","position","season","week","fantasy_points_ppr","attempts","completions","sacks","carries","receptions",
+          select("headshot_url","player_id","sleeper_id","player_name"="player_display_name","recent_team","position","season","week","fantasy_points_ppr","attempts","completions","sacks_suffered","carries","receptions",
                                                                         "sack_fumbles","rushing_fumbles","receiving_fumbles","sack_fumbles_lost","rushing_fumbles_lost","receiving_fumbles_lost",
                                                                         "wopr","racr","pacr","touches","yps","ops","epps","fpps","snaps_off","snaps_def","target_share","air_yards_share",
                                                                         "passing_2pt_conversions","rushing_2pt_conversions","receiving_2pt_conversions",ends_with("_exp"),"stat") %>%
@@ -177,7 +177,7 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
                   ) %>%
                   mutate(position = as.factor(pos)),
                 by = "position",
-                conflict = coalesce
+                conflict = coalesce_yx
               )
             }
           } %>%
@@ -200,7 +200,7 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
                     incompletions              * pass_inc     +
                     passing_2pt_conversions    * pass_2pt     +
                     pass_interception_exp      * pass_int     +
-                    sacks                      * pass_sack    +
+                    sacks_suffered             * pass_sack    +
                     ifelse(
                       rush_yards_gained_exp >=100 & rush_yards_gained_exp < 200,
                       bonus_rush_yd_100,

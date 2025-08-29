@@ -43,7 +43,7 @@ mod_nflfastr_offense_tab_ui <- function(id) {
     column(3,pickerInput(ns("season_tbl_nflfastR_off"),
       label = "Choose a Season",
       choices = 1999:lubridate::year(lubridate::today()),
-      selected = ifelse(yday(lubridate::today())>=240,lubridate::year(lubridate::today()),lubridate::year(lubridate::today())-1),
+      selected = ifelse(yday(lubridate::today())>=250,lubridate::year(lubridate::today()),lubridate::year(lubridate::today())-1),
       multiple = TRUE)
     )),
     fluidRow(column(3,
@@ -105,25 +105,55 @@ mod_nflfastr_offense_tab_server <- function(id, weekly_join) {
         filter(
           position %in% input$pos_tbl_nflfastR_off
         ) %>%
-        {
-          if(input$stat_tbl_nflfastR_off == "Passing") {
-            filter(., attempts >= input$threshold_tbl_nflfastR_off) %>%
-              select(
-                player_display_name, recent_team, position, season, week,
-                attempts, completions, passing_yards, passing_tds, 
-                interceptions, sacks, sack_yards, fantasy_points_ppr
-              )
-          } else {
-            filter(., touches >= input$threshold_tbl_nflfastR_off) %>%
-              select(
-                player_display_name, recent_team, position, season, week,
-                carries, rushing_yards, rushing_tds,
-                targets, receptions, receiving_yards, receiving_tds,
-                touches, rushrec_fumbles, rushrec_fumbles_lost, rushrec_2pt,
-                fantasy_points_ppr
-              )
-          }
+        group_by(player_id,Player=player_display_name,Position=position,Team=recent_team) %>%
+        ###
+      {
+        if(input$stat_tbl_nflfastR_off == "Passing") {
+          summarise(.,
+            Att = sum(attempts,na.rm=TRUE),
+            Comp = sum(completions,na.rm=TRUE),
+            Yds = sum(passing_yards,na.rm=TRUE),
+            `Air Yds` = sum(passing_air_yards,na.rm=TRUE),
+            YAC = sum(passing_yards_after_catch,na.rm=TRUE),
+            TD = sum(passing_tds,na.rm=TRUE),
+            `1stD` = sum(passing_first_downs,na.rm=TRUE),
+            `2Pt` = sum(passing_2pt_conversions,na.rm=TRUE),
+            Int = sum(interceptions,na.rm=TRUE),
+            Sk = sum(sacks,na.rm=TRUE),
+            `Sk Yds` = sum(sack_yards,na.rm=TRUE),
+            Fm = sum(sack_fumbles,na.rm=TRUE),
+            Fml = sum(sack_fumbles_lost,na.rm=TRUE),
+            PACR = round(mean(pacr,na.rm=TRUE),2),
+            EPA = round(mean(passing_epa,na.rm=TRUE),2),
+            DAKOTA = round(mean(dakota,na.rm=TRUE),2),
+            touches = sum(touches,na.rm=TRUE)
+          )
+        } else {
+          summarise(.,
+                    Att = sum(carries,na.rm=TRUE),
+                    `Rush Yds` = sum(rushing_yards,na.rm=TRUE),
+                    `Rush TD` = sum(rushing_tds,na.rm=TRUE),
+                    `Rush 1stD` = sum(rushing_first_downs,na.rm=TRUE),
+                    Tgt = sum(targets,na.rm=TRUE),
+                    Rec = sum(receptions,na.rm=TRUE),
+                    `Rec Yds` = sum(receiving_yards,na.rm=TRUE),
+                    `Air Yds` = sum(receiving_air_yards,na.rm=TRUE),
+                    `YAC` = sum(receiving_yards_after_catch,na.rm=TRUE),
+                    `Rec TD` = sum(receiving_tds,na.rm=TRUE),
+                    `Rec 1stD` = sum(receiving_first_downs,na.rm=TRUE),
+                    `2Pt` = sum(rushrec_2pt,na.rm=TRUE),
+                    Fm = sum(rushrec_fumbles,na.rm=TRUE),
+                    Fml = sum(rushrec_fumbles_lost,na.rm=TRUE),
+                    WOPR = round(mean(wopr,na.rm=TRUE),2),
+                    RACR = round(mean(racr,na.rm=TRUE),2),
+                    `Tgt-Share` = round(mean(target_share,na.rm=TRUE),2),
+                    `Air Yds-Share` = round(mean(air_yards_share,na.rm=TRUE),2),
+                    `Rush EPA` = round(mean(rushing_epa,na.rm=TRUE),2),
+                    `Rec EPA` = round(mean(receiving_epa,na.rm=TRUE),2),
+                    touches = sum(touches,na.rm=TRUE)
+          )
         }
+      }
     })
     
     # nflfastR Stats Offense output

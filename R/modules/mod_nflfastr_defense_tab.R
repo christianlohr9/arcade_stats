@@ -34,7 +34,7 @@ mod_nflfastr_defense_tab_ui <- function(id) {
       column(3,pickerInput(ns("season_tbl_nflfastR_def"),
         label = "Choose a Season",
         choices = 1999:lubridate::year(lubridate::today()),
-        selected = ifelse(yday(lubridate::today())>=240,lubridate::year(lubridate::today()),lubridate::year(lubridate::today())-1),
+        selected = ifelse(yday(lubridate::today())>=250,lubridate::year(lubridate::today()),lubridate::year(lubridate::today())-1),
         multiple = TRUE)
       )
     ),

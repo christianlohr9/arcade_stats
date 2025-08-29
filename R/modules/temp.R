@@ -2,7 +2,7 @@ library(tidyverse)
 library(powerjoin)
 
 league_data <- weekly_join |> 
-          select("headshot_url","player_id","sleeper_id","player_name"="player_display_name","recent_team","position","season","week","fantasy_points_ppr","attempts","completions","sacks","carries","receptions",
+          select("headshot_url","player_id","sleeper_id","player_name"="player_display_name","recent_team","position","season","week","fantasy_points_ppr","attempts","completions","sacks_suffered","carries","receptions",
                                                                         "sack_fumbles","rushing_fumbles","receiving_fumbles","sack_fumbles_lost","rushing_fumbles_lost","receiving_fumbles_lost",
                                                                         "wopr","racr","pacr","touches","yps","ops","epps","fpps","snaps_off","snaps_def","target_share","air_yards_share",
                                                                         "passing_2pt_conversions","rushing_2pt_conversions","receiving_2pt_conversions",ends_with("_exp"),"stat") %>%
@@ -15,26 +15,26 @@ league_data <- weekly_join |>
               )|> 
           mutate(
             pass_att          = 0,
+            pass_cmp          = 0,
+            pass_inc          = 0,
+            pass_yd           = 0,
+            pass_fd           = 0,
+            pass_td           = 0,
             pass_2pt          = 0,
             pass_int          = 0,
-            rec_yd            = 0,
-            pass_fd           = 0,
             pass_sack         = 0,
-            pass_cmp          = 0,
-            rush_fd           = 0,
-            pass_inc          = 0,
-            rec_2pt           = 0,
             rec               = 0,
-            rush_2pt          = 0,
-            rush_att          = 0,
+            rec_yd            = 0,
+            rec_fd            = 0,
             rec_td            = 0,
+            rec_2pt           = 0,
+            rush_att          = 0,
             rush_yd           = 0,
-            pass_yd           = 0,
-            pass_td           = 0,
+            rush_fd           = 0,
             rush_td           = 0,
+            rush_2pt          = 0,
             fum_lost          = 0,
             fum               = 0,
-            rec_fd            = 0,
             bonus_pass_yd_300 = 0,
             bonus_pass_yd_400 = 0,
             bonus_rush_yd_100 = 0,
@@ -57,7 +57,7 @@ league_data <- weekly_join |>
           ) %>% 
           powerjoin::power_left_join(
             ffscrapr::ff_scoring(ffscrapr::sleeper_connect(season = 2024, league_id = "1260312306642845696")) %>%
-                  #filter(pos %in% c("QB","RB","WR","TE")) %>%
+                  filter(pos %in% c("QB","RB","WR","TE")) %>%
                   pivot_wider(
                     names_from = event,
                     values_from = points,
@@ -65,7 +65,7 @@ league_data <- weekly_join |>
                   ) %>%
                   mutate(position = as.factor(pos)),
                 by = "position",
-                conflict = coalesce_yx
+                conflict = powerjoin::coalesce_yx
               ) %>%
           mutate(
             incompletions = attempts-completions,
@@ -74,19 +74,19 @@ league_data <- weekly_join |>
                 pass_yards_gained_exp >=300 & pass_yards_gained_exp < 400,
                 bonus_pass_yd_300,
                 0) +
-                # ifelse(
-                #   pass_yards_gained_exp >= 400,
-                #   bonus_pass_yd_400,
-                #   0) +
-                #     pass_yards_gained_exp      * pass_yd      +
-                #     pass_first_down_exp        * pass_fd      +
-                #     pass_touchdown_exp         * pass_td      +
-                #     attempts                   * pass_att     +
-                #     pass_completions_exp       * pass_cmp     +
-                #     incompletions              * pass_inc     +
-                #     passing_2pt_conversions    * pass_2pt     +
-                #     pass_interception_exp      * pass_int     +
-                #     sacks                      * pass_sack    +
+              ifelse(
+                pass_yards_gained_exp >= 400,
+                bonus_pass_yd_400,
+                0) +
+              pass_yards_gained_exp      * pass_yd      +
+              pass_first_down_exp        * pass_fd      +
+              pass_touchdown_exp         * pass_td      +
+              attempts                   * pass_att     +
+              pass_completions_exp       * pass_cmp     +
+              incompletions              * pass_inc     +
+              passing_2pt_conversions    * pass_2pt     +
+              pass_interception_exp      * pass_int     #+
+              # sacks                      * pass_sack    +
                 #     ifelse(
                 #       rush_yards_gained_exp >=100 & rush_yards_gained_exp < 200,
                 #       bonus_rush_yd_100,
@@ -108,13 +108,13 @@ league_data <- weekly_join |>
                 #   rec_yards_gained_exp >= 200,
                 #   bonus_rec_yd_200,
                 #   0) +
-                    rec_yards_gained_exp       * rec_yd       +
-                    rec_first_down_exp         * rec_fd       +
-                    rec_touchdown_exp          * rec_td       +
-                    receptions                 * rec          +
-                    receiving_2pt_conversions  * rec_2pt      +
-                    (sack_fumbles+rushing_fumbles+receiving_fumbles) * fum +
-                    (sack_fumbles_lost+rushing_fumbles_lost+receiving_fumbles_lost)* fum_lost
+                #     rec_yards_gained_exp       * rec_yd       +
+                #     rec_first_down_exp         * rec_fd       +
+                #     rec_touchdown_exp          * rec_td       +
+                #     receptions                 * rec          +
+                #     receiving_2pt_conversions  * rec_2pt      #+
+                #     (sack_fumbles+rushing_fumbles+receiving_fumbles) * fum +
+                #     (sack_fumbles_lost+rushing_fumbles_lost+receiving_fumbles_lost)* fum_lost
                 )|>filter(season==2024)
 
 league_stats <- league_data |>filter(season==2024) |> 
@@ -151,7 +151,7 @@ league_stats <- league_data |>filter(season==2024) |>
                                   # yprr                = mean(yprr,na.rm=TRUE),
                                   target_share        = mean(target_share,na.rm=TRUE)*100,
                                   air_yards_share     = mean(air_yards_share,na.rm=TRUE)*100
-                                  ) %>%
+                                  ) #%>%
                         filter(
                           touches>=input$threshold_tbl_off,
                           snaps  >=input$threshold_tbl_off_snap
