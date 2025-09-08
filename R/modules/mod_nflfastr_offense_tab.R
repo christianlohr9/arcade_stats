@@ -86,7 +86,7 @@ mod_nflfastr_offense_tab_server <- function(id, weekly_join) {
         return(data.frame(Message = "No data available. Please run update_data.R first."))
       }
       
-      t <- nflfastR::load_player_stats(as.numeric(input$season_tbl_nflfastR_off)) |> 
+      nflfastR::load_player_stats(as.numeric(input$season_tbl_nflfastR_off)) |> 
         dplyr::mutate(recent_team = as.factor(as.character(recent_team))) |> 
         dplyr::filter(
           season %in% input$season_tbl_nflfastR_off,
