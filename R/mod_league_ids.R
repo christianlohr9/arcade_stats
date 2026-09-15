@@ -36,23 +36,24 @@ mod_league_ids_server <- function(id) {
   })
 }
 
+# Uses the Sleeper API directly: one request for all leagues of a user, and it
+# also covers leagues where the user has no roster (ffscrapr fails on those).
 sleeper_user_leagues <- function(user, season) {
-  user_leagues <- ffscrapr::sleeper_userleagues(user, season)
-  if (is.null(user_leagues) || nrow(user_leagues) == 0) stop("Keine Ligen für diesen User und diese Saison gefunden.")
+  api <- "https://api.sleeper.app/v1"
+  account <- jsonlite::fromJSON(sprintf("%s/user/%s", api, utils::URLencode(user, reserved = TRUE)))
+  if (is.null(account$user_id)) stop("Sleeper User '", user, "' nicht gefunden.")
 
-  details <- lapply(user_leagues$league_id, function(league_id) {
-    tryCatch(
-      ffscrapr::sleeper_connect(season = season, league_id = league_id) |> ffscrapr::ff_league(),
-      error = function(e) NULL
-    )
-  })
+  leagues <- jsonlite::fromJSON(sprintf("%s/user/%s/leagues/nfl/%s", api, account$user_id, season))
+  if (length(leagues) == 0) stop("Keine Ligen für diesen User und diese Saison gefunden.")
 
-  dplyr::bind_rows(details) |>
-    dplyr::transmute(
-      .data$league_name,
-      league_id = as.character(.data$league_id),
-      league_type = paste0(tools::toTitleCase(.data$league_type), ifelse(.data$best_ball, " Bestball", "")),
-      url = sprintf('<a href="https://sleeper.com/leagues/%s" target="_blank">League on Sleeper</a>', .data$league_id)
-    ) |>
+  type <- c("0" = "Redraft", "1" = "Keeper", "2" = "Dynasty")[as.character(leagues$settings$type)]
+  best_ball <- dplyr::coalesce(leagues$settings$best_ball, 0L) == 1
+
+  tibble::tibble(
+    league_name = leagues$name,
+    league_id = leagues$league_id,
+    league_type = paste0(dplyr::coalesce(unname(type), "Redraft"), ifelse(best_ball, " Bestball", "")),
+    url = sprintf('<a href="https://sleeper.com/leagues/%s" target="_blank">League on Sleeper</a>', leagues$league_id)
+  ) |>
     dplyr::arrange(.data$league_name)
 }

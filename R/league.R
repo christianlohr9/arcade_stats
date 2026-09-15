@@ -20,11 +20,49 @@ parse_league <- function(x) {
        call. = FALSE)
 }
 
-league_connect <- function(league, season) {
-  switch(league$type,
-    mfl = ffscrapr::mfl_connect(season = season, league_id = league$id),
-    sleeper = ffscrapr::sleeper_connect(season = season, league_id = league$id)
-  )
+sleeper_conn <- function(league, season) {
+  ffscrapr::sleeper_connect(season = season, league_id = league$id)
+}
+
+# MFL is queried through its export API directly: ffscrapr's MFL functions
+# parse the league's full scoring rules first and fail on some leagues.
+mfl_cache <- new.env()
+MFL_CACHE_SECONDS <- 15 * 60
+MFL_MIN_INTERVAL <- 1
+
+mfl_export <- function(season, type, league_id, ...) {
+  params <- c(TYPE = type, L = league_id, ..., JSON = 1)
+  url <- sprintf("https://api.myfantasyleague.com/%s/export?%s", season,
+                 paste(names(params), params, sep = "=", collapse = "&"))
+
+  cached <- mfl_cache[[url]]
+  if (!is.null(cached) && difftime(Sys.time(), cached$at, units = "secs") < MFL_CACHE_SECONDS) {
+    return(cached$body)
+  }
+
+  handle <- curl::new_handle(followlocation = TRUE, useragent = "arcade-stats-shiny", timeout = 60)
+  # MFL rate-limits bursts of requests with 429: space requests out and back
+  # off when it happens anyway.
+  for (attempt in 1:5) {
+    wait <- MFL_MIN_INTERVAL - as.numeric(difftime(Sys.time(), mfl_cache$last_request %||% as.POSIXct(0), units = "secs"))
+    if (wait > 0) Sys.sleep(wait)
+    mfl_cache$last_request <- Sys.time()
+    res <- curl::curl_fetch_memory(url, handle)
+    if (res$status_code != 429) break
+    Sys.sleep(5 * attempt)
+  }
+  if (res$status_code != 200) stop("MFL antwortet mit Status ", res$status_code, " für ", type, call. = FALSE)
+  body <- jsonlite::fromJSON(rawToChar(res$content))
+  if (!is.null(body$error)) stop("MFL: ", unlist(body$error)[1], call. = FALSE)
+
+  mfl_cache[[url]] <- list(at = Sys.time(), body = body)
+  body
+}
+
+# MFL returns a single record as an object instead of an array.
+as_records <- function(x) {
+  if (is.null(x) || length(x) == 0) return(data.frame())
+  if (is.data.frame(x)) x else as.data.frame(x)
 }
 
 player_id_map <- function(platform_col) {
@@ -38,32 +76,26 @@ player_id_map <- function(platform_col) {
 #' Weekly fantasy points of every player under a league's scoring
 #' @return player_id, season, week, fantasy_points_league
 league_points <- function(league, season, weeks) {
-  conn <- league_connect(league, season)
-
   if (league$type == "mfl") {
-    # Weekly MFL requests have returned zero points for some seasons; the
-    # per-week scores are therefore fetched one week at a time and a week with
-    # no scoring player is dropped instead of silently counting as zero.
     scores <- lapply(weeks, function(w) {
-      s <- ffscrapr::ff_playerscores(conn, season = season, week = w)
-      if (nrow(s) == 0 || all(s$points == 0, na.rm = TRUE)) return(NULL)
-      s$week <- w
-      s
+      s <- as_records(mfl_export(season, "playerScores", league$id, W = w)$playerScores$playerScore)
+      if (nrow(s) == 0) return(NULL)
+      data.frame(platform_id = as.character(s$id), week = as.integer(w),
+                 points = suppressWarnings(as.numeric(s$score)))
     }) |>
       dplyr::bind_rows()
     if (nrow(scores) == 0) return(empty_league_points())
 
     return(
       scores |>
-        dplyr::mutate(platform_id = as.character(.data$player_id)) |>
-        dplyr::summarise(fantasy_points_league = mean(.data$points), .by = c("platform_id", "week")) |>
+        dplyr::filter(nzchar(.data$platform_id), !is.na(.data$points)) |>
         dplyr::inner_join(player_id_map("mfl_id"), by = "platform_id") |>
-        dplyr::transmute(.data$player_id, season = as.integer(season), week = as.integer(.data$week),
-                         .data$fantasy_points_league)
+        dplyr::summarise(fantasy_points_league = mean(.data$points), .by = c("player_id", "week")) |>
+        dplyr::mutate(season = as.integer(season), .after = "player_id")
     )
   }
 
-  ffscrapr::ff_scoringhistory(conn, season = season) |>
+  ffscrapr::ff_scoringhistory(sleeper_conn(league, season), season = season) |>
     dplyr::filter(!is.na(.data$gsis_id), .data$week %in% weeks) |>
     dplyr::rename(player_id = "gsis_id") |>
     dplyr::summarise(fantasy_points_league = mean(.data$points), .by = c("player_id", "season", "week")) |>
@@ -78,21 +110,36 @@ empty_league_points <- function() {
 #' Franchise of every rostered player
 #' @return player_id, franchise_name
 league_rosters <- function(league, season) {
-  if (league$type == "ppr") return(tibble::tibble(player_id = character(), franchise_name = character()))
-  conn <- league_connect(league, season)
-
   if (league$type == "mfl") {
-    rosters <- ffscrapr::ff_rosters(conn)
+    info <- mfl_export(season, "league", league$id)$league
+    franchises <- as_records(info$franchises$franchise)
+    # Leagues split into conferences with separate player pools (like the
+    # Arcade MFL league) roster every player once per conference; as before,
+    # franchises of conference "01" are used.
+    divisions <- as_records(info$divisions$division)
+    if (nrow(divisions) > 0 && "conference" %in% names(divisions) && "01" %in% divisions$conference) {
+      franchises <- franchises[franchises$division %in% divisions$id[divisions$conference == "01"], ]
+    }
+    rosters <- mfl_export(season, "rosters", league$id)$rosters$franchise
+    players <- lapply(seq_len(NROW(rosters)), function(i) {
+      p <- as_records(rosters$player[[i]])
+      if (nrow(p) == 0) return(NULL)
+      data.frame(franchise_id = rosters$id[i], platform_id = as.character(p$id))
+    }) |>
+      dplyr::bind_rows()
+    if (nrow(players) == 0) return(tibble::tibble(player_id = character(), franchise_name = character()))
+
     return(
-      rosters |>
-        dplyr::transmute(platform_id = as.character(.data$player_id), .data$franchise_name) |>
-        dplyr::distinct(.data$platform_id, .keep_all = TRUE) |>
+      players |>
+        dplyr::inner_join(data.frame(franchise_id = franchises$id, franchise_name = franchises$name),
+                          by = "franchise_id") |>
         dplyr::inner_join(player_id_map("mfl_id"), by = "platform_id") |>
+        dplyr::distinct(.data$player_id, .keep_all = TRUE) |>
         dplyr::select("player_id", "franchise_name")
     )
   }
 
-  ffscrapr::ff_rosters(conn) |>
+  ffscrapr::ff_rosters(sleeper_conn(league, season)) |>
     dplyr::transmute(platform_id = as.character(.data$player_id), .data$franchise_name) |>
     dplyr::inner_join(player_id_map("sleeper_id"), by = "platform_id") |>
     dplyr::distinct(.data$player_id, .keep_all = TRUE) |>
@@ -111,7 +158,7 @@ attach_franchises <- function(df, league, season) {
 
 #' Scoring rules of a Sleeper league, one row per position, one column per event
 sleeper_scoring_rules <- function(league_id, season) {
-  ffscrapr::ff_scoring(ffscrapr::sleeper_connect(season = season, league_id = league_id)) |>
+  ffscrapr::ff_scoring(sleeper_conn(list(id = league_id), season)) |>
     dplyr::filter(.data$pos %in% c("QB", "RB", "WR", "TE")) |>
     dplyr::select("pos", "event", "points") |>
     dplyr::distinct(.data$pos, .data$event, .keep_all = TRUE) |>
