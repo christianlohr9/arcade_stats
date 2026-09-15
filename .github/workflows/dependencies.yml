@@ -28,8 +28,10 @@ jobs:
 
       - uses: r-lib/actions/setup-renv@v2
 
+      # renv itself is left out: updating it mid-run leaves renv/activate.R
+      # out of sync with the installed version.
       - name: Update packages
-        run: Rscript -e 'renv::update(prompt = FALSE); renv::snapshot(prompt = FALSE)'
+        run: Rscript -e 'renv::update(exclude = "renv", prompt = FALSE); renv::snapshot(prompt = FALSE)'
 
       - name: Run tests
         env:
