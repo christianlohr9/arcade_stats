@@ -1,7 +1,10 @@
 name: dependencies
 
-# Updates the renv lockfile once a month and opens a pull request; the ci
-# workflow runs the tests on it before anything is merged and deployed.
+# Updates R packages in the renv lockfile once a month, runs the tests and
+# opens a pull request only if they pass. Pull requests created with the
+# workflow token do not trigger other workflows, so the tests run here.
+# The R version stays at the lockfile's version, so an R release cannot break
+# the shinyapps.io deploy unnoticed.
 on:
   schedule:
     - cron: "0 6 1 * *"
@@ -20,6 +23,7 @@ jobs:
 
       - uses: r-lib/actions/setup-r@v2
         with:
+          r-version: renv
           use-public-rspm: true
 
       - uses: r-lib/actions/setup-renv@v2
@@ -27,10 +31,17 @@ jobs:
       - name: Update packages
         run: Rscript -e 'renv::update(prompt = FALSE); renv::snapshot(prompt = FALSE)'
 
+      - name: Run tests
+        env:
+          NOT_CRAN: "true"
+        run: |
+          Rscript -e 'renv::install(c("testthat", "shinytest2", "chromote", "withr"), prompt = FALSE)'
+          Rscript -e 'testthat::test_dir("tests/testthat", stop_on_failure = TRUE)'
+
       - uses: peter-evans/create-pull-request@v7
         with:
           branch: deps/renv-update
           commit-message: "chore: update R dependencies"
           title: "chore: update R dependencies"
-          body: Monthly renv update. Merge once the ci checks pass.
+          body: Monthly renv update. The tests passed with these versions in the dependencies workflow run; merging deploys them.
           delete-branch: true
