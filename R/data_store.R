@@ -45,10 +45,11 @@ get_datasets <- function(now = Sys.time()) {
     return(data_store$data)
   }
 
-  manifest <- tryCatch(read_manifest(), error = function(e) {
+  unreadable <- function(e) {
     message("Could not read data manifest: ", conditionMessage(e))
     NULL
-  })
+  }
+  manifest <- tryCatch(read_manifest(), error = unreadable, warning = unreadable)
 
   if (is.null(manifest)) {
     if (is.null(data_store$data)) stop("Keine Daten verfügbar: ", data_source("manifest.json"), call. = FALSE)

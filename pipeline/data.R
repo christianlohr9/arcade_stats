@@ -198,7 +198,8 @@ idp_points <- function(d) {
 # Minimum regular-season rows for a completed season.
 MIN_ROWS <- c(offense = 4000, defense = 6000)
 
-validate_datasets <- function(datasets, current_season, current_week, today = Sys.Date()) {
+validate_datasets <- function(datasets, current_season, current_week,
+                              first_season = FIRST_SEASON, min_rows = MIN_ROWS) {
   problems <- character()
   check <- function(ok, msg) if (!isTRUE(ok)) problems <<- c(problems, msg)
 
@@ -214,9 +215,9 @@ validate_datasets <- function(datasets, current_season, current_week, today = Sy
     dupes <- sum(duplicated(d[c("player_id", "season", "week")]))
     check(dupes == 0, sprintf("%s: %d duplicated player/season/week rows", name, dupes))
 
-    rows <- table(factor(d$season, levels = FIRST_SEASON:current_season))
-    completed <- rows[as.character(FIRST_SEASON:(current_season - 1))]
-    thin <- names(completed)[completed < MIN_ROWS[[name]]]
+    rows <- table(factor(d$season, levels = first_season:current_season))
+    completed <- rows[as.character(first_season:(current_season - 1))]
+    thin <- names(completed)[completed < min_rows[[name]]]
     check(length(thin) == 0, sprintf("%s: too few rows for seasons %s", name, paste(thin, collapse = ", ")))
 
     check(mean(is.na(d$fantasy_points_ppr)) < 0.01, sprintf("%s: fantasy_points_ppr mostly missing", name))
@@ -234,8 +235,8 @@ validate_datasets <- function(datasets, current_season, current_week, today = Sy
 
   # Players without a single touch have no expected points row.
   with_touches <- datasets$offense |>
-    dplyr::filter(.data$season %in% FIRST_EP_SEASON:(current_season - 1), .data$touches > 0)
-  ep_share <- mean(!is.na(with_touches$total_fantasy_points_exp))
+    dplyr::filter(.data$season %in% max(first_season, FIRST_EP_SEASON):(current_season - 1), .data$touches > 0)
+  ep_share <- if (nrow(with_touches) > 0) mean(!is.na(with_touches$total_fantasy_points_exp)) else 1
   check(ep_share > 0.95, sprintf("offense: expected points cover only %.0f%% of rows with touches", ep_share * 100))
 
   problems
