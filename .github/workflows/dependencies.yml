@@ -36,7 +36,8 @@ jobs:
       # Packages come from the Posit Package Manager mirror in CI; record them
       # as CRAN so shinyapps.io resolves them.
       - name: Record CRAN as repository
-        run: sed -i 's/"Repository": "RSPM"/"Repository": "CRAN"/' renv.lock
+        run: |
+          sed -i 's/"Repository": "RSPM"/"Repository": "CRAN"/' renv.lock
 
       - name: Run tests
         env:
