@@ -128,10 +128,10 @@ mod_values_server <- function(id, war_result) {
 
 # Weekly points per player under the chosen league's scoring.
 war_input <- function(offense, defense, league, season, weeks) {
-  cols <- c("player_id", "player_name", "position", "season", "week", "fantasy_points_ppr")
+  cols <- c("player_id", player_name = "player_display_name", "position", "season", "week", "fantasy_points_ppr")
   players <- dplyr::bind_rows(
-    offense[offense$season == season & offense$week %in% weeks, cols],
-    defense[defense$season == season & defense$week %in% weeks, cols]
+    dplyr::select(offense[offense$season == season & offense$week %in% weeks, ], dplyr::all_of(cols)),
+    dplyr::select(defense[defense$season == season & defense$week %in% weeks, ], dplyr::all_of(cols))
   )
 
   if (league$type == "ppr") {
