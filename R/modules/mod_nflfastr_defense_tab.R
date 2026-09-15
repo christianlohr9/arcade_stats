@@ -19,8 +19,8 @@ mod_nflfastr_defense_tab_ui <- function(id) {
     fluidRow(
       column(3,pickerInput(ns("team_tbl_nflfastR_def"),
         label = "Choose a Team",
-        choices = c("ARI", "ATL", "BAL", "BUF"),  # Will be updated dynamically
-        selected = c("ARI", "ATL", "BAL", "BUF"),  # Will be updated dynamically
+        choices = c("ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"),
+        selected = c("ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"),
         options = list(`actions-box` = TRUE),
         multiple = TRUE)
       ),
@@ -70,8 +70,8 @@ mod_nflfastr_defense_tab_server <- function(id, weekly_join_def) {
     observe({
       if(!is.null(weekly_join_def) && nrow(weekly_join_def) > 0) {
         updatePickerInput(session, "team_tbl_nflfastR_def",
-          choices = levels(weekly_join_def$team),
-          selected = levels(weekly_join_def$team)
+          choices = levels(as.factor(weekly_join_def$team)),
+          selected = levels(as.factor(weekly_join_def$team))
         )
         
         updatePickerInput(session, "pos_tbl_nflfastR_def",

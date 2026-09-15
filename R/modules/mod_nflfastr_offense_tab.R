@@ -28,8 +28,8 @@ mod_nflfastr_offense_tab_ui <- function(id) {
     ),
     column(3,pickerInput(ns("team_tbl_nflfastR_off"),
       label = "Choose a Team",
-      choices = levels(weekly_join$recent_team),  
-      selected = levels(weekly_join$recent_team), 
+      choices = c("ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"),  
+      selected = c("ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"), 
       options = list(`actions-box` = TRUE),
       multiple = TRUE)
     ),
@@ -74,8 +74,8 @@ mod_nflfastr_offense_tab_server <- function(id, weekly_join) {
     observe({
       if(!is.null(weekly_join) && nrow(weekly_join) > 0) {
         updatePickerInput(session, "team_tbl_nflfastR_off",
-          choices = levels(weekly_join$recent_team),
-          selected = levels(weekly_join$recent_team)
+          choices = levels(as.factor(weekly_join$team)),
+          selected = levels(as.factor(weekly_join$team))
         )
       }
     })
@@ -87,11 +87,11 @@ mod_nflfastr_offense_tab_server <- function(id, weekly_join) {
       }
       
       nflfastR::load_player_stats(as.numeric(input$season_tbl_nflfastR_off)) |> 
-        dplyr::mutate(recent_team = as.factor(as.character(recent_team))) |> 
+        dplyr::mutate(team = as.factor(as.character(team))) |> 
         dplyr::filter(
           season %in% input$season_tbl_nflfastR_off,
           week %in% input$week_tbl_nflfastR_off,
-          recent_team %in% input$team_tbl_nflfastR_off
+          team %in% input$team_tbl_nflfastR_off
         ) %>%
         left_join(nflfastR::fast_scraper_roster(as.numeric(input$season_tbl_nflfastR_off)) %>%
                     select(player_id=gsis_id,season,position)) %>%
@@ -105,7 +105,7 @@ mod_nflfastr_offense_tab_server <- function(id, weekly_join) {
         filter(
           position %in% input$pos_tbl_nflfastR_off
         ) %>%
-        group_by(player_id,Player=player_display_name,Position=position,Team=recent_team) %>%
+        group_by(player_id,Player=player_display_name,Position=position,Team=team) %>%
         ###
       {
         if(input$stat_tbl_nflfastR_off == "Passing") {
@@ -118,14 +118,13 @@ mod_nflfastr_offense_tab_server <- function(id, weekly_join) {
             TD = sum(passing_tds,na.rm=TRUE),
             `1stD` = sum(passing_first_downs,na.rm=TRUE),
             `2Pt` = sum(passing_2pt_conversions,na.rm=TRUE),
-            Int = sum(interceptions,na.rm=TRUE),
-            Sk = sum(sacks,na.rm=TRUE),
-            `Sk Yds` = sum(sack_yards,na.rm=TRUE),
+            Int = sum(passing_interceptions,na.rm=TRUE),
+            Sk = sum(sacks_suffered,na.rm=TRUE),
+            `Sk Yds` = sum(sack_yards_lost,na.rm=TRUE),
             Fm = sum(sack_fumbles,na.rm=TRUE),
             Fml = sum(sack_fumbles_lost,na.rm=TRUE),
             PACR = round(mean(pacr,na.rm=TRUE),2),
             EPA = round(mean(passing_epa,na.rm=TRUE),2),
-            DAKOTA = round(mean(dakota,na.rm=TRUE),2),
             touches = sum(touches,na.rm=TRUE)
           )
         } else {

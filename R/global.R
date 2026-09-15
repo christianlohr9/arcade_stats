@@ -17,7 +17,14 @@ library(DT)
 library(RCurl)
 library(ggimage)
 library(nflfastR)
-library(ffscrapr)
+
+# Conditional ffscrapr loading for deployment compatibility
+if (requireNamespace("ffscrapr", quietly = TRUE)) {
+  library(ffscrapr)
+  if (!exists(".ffscrapr_available")) .ffscrapr_available <- TRUE
+} else {
+  if (!exists(".ffscrapr_available")) .ffscrapr_available <- FALSE
+}
 library(googlesheets4)
 library(shinydisconnect)
 library(powerjoin)
@@ -54,7 +61,7 @@ dark <- bs_theme(
 gif <- "https://i.scdn.co/image/ab6765630000ba8aed1285ce5d62661172e43877"
 
 waiting_screen <- tagList(
-  h3(glue::glue("Je nach Auswahl der Methode kann die \nArcade Fantasy Magie etwas dauern {emo::ji('crystal')}"), 
+  h3(glue::glue("Je nach Auswahl der Methode kann die \nArcade Fantasy Magie etwas dauern 🔮"), 
      style = "color:white;"),
   img(src = gif, height = "200px")
 )

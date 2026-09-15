@@ -28,15 +28,15 @@ generate_weekly_stats <- function(years) {
   all_stats <- nflfastR::calculate_stats(seasons = years_to_process, summary_level = "week", stat_type = "player")
   
   # Split into offensive and defensive stats based on available columns
-  weekly <- all_stats %>%
-    filter(!is.na(attempts) | !is.na(carries) | !is.na(targets)) # Players with offensive stats
+  weekly <- all_stats |> 
+    dplyr::filter(!is.na(attempts) | !is.na(carries) | !is.na(targets)) # Players with offensive stats
     
-  weekly_def <- all_stats %>%
-    filter(!is.na(def_tackles_solo) | !is.na(def_sacks) | !is.na(def_interceptions)) # Players with defensive stats
+  weekly_def <- all_stats |> 
+    dplyr::filter(!is.na(def_tackles_solo) | !is.na(def_sacks) | !is.na(def_interceptions)) # Players with defensive stats
   
   # Save files
-  weekly_file <- glue("data/weekly_{years_short}.rds")
-  weekly_def_file <- glue("data/weekly_def_{years_short}.rds")
+  weekly_file <- glue::glue("data/weekly_{years_short}.rds")
+  weekly_def_file <- glue::glue("data/weekly_def_{years_short}.rds")
   
   saveRDS(weekly, weekly_file)
   saveRDS(weekly_def, weekly_def_file)
@@ -69,7 +69,7 @@ generate_snap_counts <- function(years) {
   all_snaps <- tidyr::crossing(year = years) |>
     purrr::pmap_dfr(get_snaps)
   
-  snap_file <- glue("data/all_snaps_{years_short}.rds")
+  snap_file <- glue::glue("data/all_snaps_{years_short}.rds")
   saveRDS(all_snaps, snap_file)
   
   message(glue("Saved {snap_file}"))
@@ -93,7 +93,7 @@ generate_expected_points <- function() {
   
   # Load existing EP data and bind
   if (file.exists("data/ep_past.rds")) {
-    ep_existing <- readRDS("data/ep_past.rds")
+    ep_existing <- readRDS("data/ep_past.rds") |> dplyr::filter(season != (lubridate::today() |> lubridate::year()))
     ep <- dplyr::bind_rows(ep_existing, ep_act)
   } else {
     ep <- ep_act

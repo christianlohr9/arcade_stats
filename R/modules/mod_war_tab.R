@@ -253,11 +253,11 @@ mod_war_tab_server <- function(id, war_df_global, weekly_join_war, weekly_join_d
       
       if (!is.null(war_df) && nrow(war_df) > 0) {
         DT::datatable(war_df %>%
-            select(rank, player, Position, Ave_Week_Points, Avr_Win_Percent, WAR, WAA, Games, franchise_name) %>%
+            select(rank, player, Position, Ave_Week_Points, Avr_Win_Percent, WAR, WAA, Games, consistency, franchise_name) %>%
             rename(`FP/W` = Ave_Week_Points) %>%
             rename(`Win%` = Avr_Win_Percent) %>%
             rename(`Franchise` = franchise_name),
-          extensions = c('FixedColumns', 'Buttons', 'Scroller'),
+          extensions = c('Buttons'),
           options = list(
             dom = 'Bfrtip',
             buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
@@ -265,12 +265,17 @@ mod_war_tab_server <- function(id, war_df_global, weekly_join_war, weekly_join_d
             scrollY = '600px',
             fixedColumns = list(leftColumns = 3),
             scroller = TRUE,
-            columnDefs = list(list(className = 'dt-center', targets = "_all"))
+            columnDefs = list(list(className = 'dt-center', targets = "_all")),
+            pageLength = 100
           ),
-          rownames = FALSE
+          rownames = FALSE,
+          style = "bootstrap4",
+          filter = "top"
         ) %>%
         formatRound(columns = c('FP/W', 'WAR', 'WAA'), digits = 2) %>%
-        formatRound(columns = "Games", digits = 1)
+        formatRound(columns = "Games", digits = 1) %>%
+        formatStyle(columns = c('rank', 'player', 'Position', 'FP/W', 'Win%', 'WAR', 'WAA', 'Games', 'Franchise'), 
+                   backgroundColor = 'transparent', color = 'inherit')
       } else {
         DT::datatable(data.frame(Message = "Keine Daten verfügbar. Bitte laden Sie zuerst Daten."))
       }

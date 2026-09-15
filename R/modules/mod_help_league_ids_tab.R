@@ -54,37 +54,62 @@ mod_help_league_ids_tab_ui <- function(id) {
 mod_help_league_ids_tab_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     
-    # Original reactive logic from shiny_base_stats.R
+    # Simplified reactive logic with better error handling
     league_data <- reactive({
       req(input$league_user, input$league_season, input$league_type_ovr)
       
       tryCatch({
-        tidyr::crossing(
-          leagues = ffscrapr::sleeper_userleagues(input$league_user, input$league_season) %>%
-            select(league_id) %>%
-            as_vector()
-        ) %>%
-          purrr::pmap_dfr(function(leagues) {
-            raw <- ffscrapr::sleeper_connect(season = input$league_season, league_id = leagues) %>%
-              ffscrapr::ff_league() %>%
-              select(league_type, best_ball, league_name, league_id) %>%
-              mutate(
-                league_type_new = case_when(
-                  league_type == "redraft" & best_ball == "TRUE"  ~ "Redraft Bestball",
-                  league_type == "redraft" & best_ball == "FALSE" ~ "Redraft",
-                  league_type == "dynasty" & best_ball == "TRUE"  ~ "Dynasty Bestball",
-                  league_type == "dynasty" & best_ball == "FALSE" ~ "Dynasty",
-                  league_type == "keeper"  & best_ball == "TRUE"  ~ "Keeper Bestball",
-                  league_type == "keeper"  & best_ball == "FALSE" ~ "Keeper"
-                )
-              ) %>%
-              filter(league_type_new %in% input$league_type_ovr) %>%
-              select(league_name, league_id) %>%
-              mutate(url = paste0('<a href="https://sleeper.com/leagues/', league_id, '">League on Sleeper</a>'))
+        # Get user leagues directly without crossing
+        user_leagues <- ffscrapr::sleeper_userleagues(input$league_user, input$league_season)
+        
+        if(is.null(user_leagues) || nrow(user_leagues) == 0) {
+          return(data.frame(Message = "Keine Ligen für diesen User und Season gefunden."))
+        }
+        
+        # Process each league
+        result_list <- list()
+        for(i in 1:nrow(user_leagues)) {
+          league_id <- user_leagues$league_id[i]
+          
+          tryCatch({
+            league_info <- ffscrapr::sleeper_connect(season = input$league_season, league_id = league_id) %>%
+              ffscrapr::ff_league()
             
-            return(raw)
-          }) %>%
-          arrange(league_name)
+            if(nrow(league_info) > 0) {
+              league_processed <- league_info %>%
+                select(league_type, best_ball, league_name, league_id) %>%
+                mutate(
+                  league_type_new = case_when(
+                    league_type == "redraft" & best_ball == TRUE  ~ "Redraft Bestball",
+                    league_type == "redraft" & best_ball == FALSE ~ "Redraft",
+                    league_type == "dynasty" & best_ball == TRUE  ~ "Dynasty Bestball",
+                    league_type == "dynasty" & best_ball == FALSE ~ "Dynasty",
+                    league_type == "keeper"  & best_ball == TRUE  ~ "Keeper Bestball",
+                    league_type == "keeper"  & best_ball == FALSE ~ "Keeper",
+                    TRUE ~ paste(league_type, ifelse(best_ball, "Bestball", ""))
+                  )
+                ) %>%
+                filter(league_type_new %in% input$league_type_ovr) %>%
+                select(league_name, league_id) %>%
+                mutate(url = paste0('<a href="https://sleeper.com/leagues/', league_id, '">League on Sleeper</a>'))
+              
+              result_list[[i]] <- league_processed
+            }
+          }, error = function(e) {
+            # Skip leagues that cause errors
+            message(paste("Skipping league", league_id, "due to error:", e$message))
+          })
+        }
+        
+        # Combine all results
+        if(length(result_list) > 0) {
+          final_result <- do.call(rbind, result_list[!sapply(result_list, is.null)])
+          if(nrow(final_result) > 0) {
+            return(final_result %>% arrange(league_name))
+          }
+        }
+        
+        return(data.frame(Message = "Keine Ligen des gewählten Typs gefunden."))
         
       }, error = function(e) {
         return(data.frame(Message = paste("Fehler beim Laden der Ligen:", e$message)))

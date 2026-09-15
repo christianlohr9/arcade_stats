@@ -7,14 +7,23 @@ library(DT)
 library(dplyr)
 library(tidyr)
 library(nflfastR)
-library(ffscrapr)
+
+# Conditional ffscrapr loading for deployment compatibility
+if (requireNamespace("ffscrapr", quietly = TRUE)) {
+  library(ffscrapr)
+  .ffscrapr_available <- TRUE
+  message("✓ ffscrapr loaded - Liga integration available")
+} else {
+  .ffscrapr_available <- FALSE
+  message("⚠ ffscrapr not available - Liga integration disabled")
+}
+
 library(RCurl)
 library(powerjoin)
 library(psych)
 library(qs)
 library(jsonlite)
 library(glue)
-library(emo)
 library(purrr)
 
 # Source external functions and modules
@@ -51,14 +60,14 @@ weekly_join <- tryCatch({
 }, error = function(e) {
   data.frame()
 }) |> 
-  dplyr::mutate(recent_team = ifelse(is.na(recent_team),as.character(team),recent_team))
+  dplyr::mutate(team = factor(coalesce(as.character(team), recent_team)))
 
 weekly_join_def <- tryCatch({
   readRDS("data/weekly_stats_def.rds")  
 }, error = function(e) {
   data.frame()
 }) |> 
-  dplyr::mutate(recent_team = ifelse(is.na(recent_team),as.character(team),recent_team))
+  dplyr::mutate(team = factor(coalesce(as.character(team), recent_team)))
 
 weekly_join_war <- weekly_join |>  select("player_id","player_name","recent_team","position","season","week","fantasy_points_ppr")
 weekly_join_def_war <- weekly_join_def |>  select("player_id","player_name","recent_team","position","season","week","fantasy_points_ppr")
@@ -69,7 +78,7 @@ war_df_global <- reactiveVal(NULL)
 # Original waiting screen from shiny_base_stats.R
 gif <- "https://i.scdn.co/image/ab6765630000ba8aed1285ce5d62661172e43877"
 waiting_screen <- tagList(
-  h3(glue::glue("Je nach Auswahl der Methode kann die \nArcade Fantasy Magie etwas dauern {emo::ji('crystal')}"), style = "color:white;"),
+  h3(glue::glue("Je nach Auswahl der Methode kann die \nArcade Fantasy Magie etwas dauern 🔮"), style = "color:white;"),
   img(src = gif, height = "200px")
 )
 
@@ -226,7 +235,7 @@ server <- function(input, output, session) {
           summarise(pos = "TE", war = sum(WAR), .groups = "drop")
       ) %>%
         pivot_wider(names_from = pos, values_from = war, values_fill = 0) %>%
-        mutate(OVR = QB + RB + WR + TE) %>%
+        mutate(OVR = QB + RB + WR + TE, .before = QB) %>%
         arrange(-OVR)
 
       DT::datatable(values_team,
@@ -240,9 +249,9 @@ server <- function(input, output, session) {
         DT::formatRound(columns = names(values_team %>% select(-Team)), digits = 1) %>%
         DT::formatStyle(names(values_team %>% select(-Team)),
           background = if (isTRUE(input$light_mode)) 
-            styleColorBar(range(c(values_team$QB, values_team$RB, values_team$WR, values_team$TE, values_team$OVR)), '#FFC010', angle = -90) 
+            styleColorBar(range(c(values_team$OVR, values_team$QB, values_team$RB, values_team$WR, values_team$TE)), '#FFC010', angle = -90) 
           else 
-            styleColorBar(range(c(values_team$QB, values_team$RB, values_team$WR, values_team$TE, values_team$OVR)), '#915191', angle = -90),
+            styleColorBar(range(c(values_team$OVR, values_team$QB, values_team$RB, values_team$WR, values_team$TE)), '#915191', angle = -90),
           backgroundSize = '98% 88%',
           backgroundRepeat = 'no-repeat',
           backgroundPosition = 'center'

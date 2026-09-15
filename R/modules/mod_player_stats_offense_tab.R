@@ -22,8 +22,8 @@ mod_player_stats_offense_tab_ui <- function(id) {
     ),
     column(3,pickerInput(ns("team_tbl_off"),
       label = "Choose a Team",
-      choices = levels(as.factor(weekly_join$recent_team)), 
-      selected = levels(as.factor(weekly_join$recent_team)),  
+      choices = c("ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"), 
+      selected = c("ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"),  
       options = list(`actions-box` = TRUE),
       multiple = TRUE)
     ),
@@ -65,6 +65,12 @@ mod_player_stats_offense_tab_ui <- function(id) {
         actionButton(ns("league_stats_calc"),
           label = "Calculate"
         )
+      ),
+      column(2,
+        downloadButton(ns("tbl_off_download"),
+          label = "Download CSV",
+          class = "btn-primary"
+        )
       )),
     DT::dataTableOutput(ns("Stats_League_Offense"))
   )
@@ -82,8 +88,8 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
     observe({
       if(!is.null(weekly_join) && nrow(weekly_join) > 0) {
         updatePickerInput(session, "team_tbl_off",
-          choices = levels(as.factor(weekly_join$recent_team)),
-          selected = levels(as.factor(weekly_join$recent_team))
+          choices = levels(as.factor(weekly_join$team)),
+          selected = levels(as.factor(weekly_join$team))
         )
         
         updatePickerInput(session, "pos_tbl_off",
@@ -104,7 +110,7 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
 
       league_data <- reactive({
         weekly_join |> 
-          select("headshot_url","player_id","sleeper_id","player_name"="player_display_name","recent_team","position","season","week","fantasy_points_ppr","attempts","completions","sacks_suffered","carries","receptions",
+          select("headshot_url","player_id","sleeper_id","player_name"="player_display_name","team","position","season","week","fantasy_points_ppr","attempts","completions","sacks_suffered","carries","receptions",
                                                                         "sack_fumbles","rushing_fumbles","receiving_fumbles","sack_fumbles_lost","rushing_fumbles_lost","receiving_fumbles_lost",
                                                                         "wopr","racr","pacr","touches","yps","ops","epps","fpps","snaps_off","snaps_def","target_share","air_yards_share",
                                                                         "passing_2pt_conversions","rushing_2pt_conversions","receiving_2pt_conversions",ends_with("_exp"),"stat") %>%
@@ -167,7 +173,7 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
             if(input$league_off %in% c("Bitte ID eintragen","","DFS")) {
               ungroup(.,)
             } else {
-              power_left_join(.,
+              powerjoin::power_left_join(.,
                 ffscrapr::ff_scoring(ffscrapr::sleeper_connect(season = max(input$season_tbl_off), league_id = input$league_off)) %>%
                   filter(pos %in% c("QB","RB","WR","TE")) %>%
                   pivot_wider(
@@ -177,7 +183,7 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
                   ) %>%
                   mutate(position = as.factor(pos)),
                 by = "position",
-                conflict = coalesce_yx
+                conflict = powerjoin::coalesce_yx
               )
             }
           } %>%
@@ -236,7 +242,7 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
       league_stats <- league_data() |>
                         dplyr::filter(
                           stat        %in% input$stat_tbl_off,
-                          recent_team %in% input$team_tbl_off,
+                          team %in% input$team_tbl_off,
                           week        %in% input$week_tbl_off,
                           season      %in% input$season_tbl_off,
                           position    %in% input$pos_tbl_off
@@ -246,7 +252,7 @@ mod_player_stats_offense_tab_server <- function(id, weekly_join, show_no_data_me
                           diff_league = fantasy_points_league - ep_league,
                           diff_ppr    = fantasy_points_ppr    - total_fantasy_points_exp
                         ) %>%
-      group_by(recent_team,player_id,sleeper_id,player_name,position,season) %>%
+      group_by(team,player_id,sleeper_id,player_name,position,season) %>%
       summarise(
                                   FPTS_League         = sum(fantasy_points_league,na.rm=TRUE),
                                   FPTSpG_League       = mean(fantasy_points_league,na.rm=TRUE),

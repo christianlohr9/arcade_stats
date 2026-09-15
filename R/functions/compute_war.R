@@ -39,7 +39,7 @@ compute_war <- function(f_years, f_week, weekly_join_war, weekly_join_def_war, w
         left_join(.,
                   ff_playerscores(ffscrapr::mfl_connect(max(input$war_season), league_id = 60206),
                                   season=max(input$war_season),
-                                  week=1:max(weekly_join %>% filter(season==max(input$war_season)) %>% mutate(week=as.numeric(week)) %>% select(week) %>% max())) %>%
+                                  week=1:max(weekly_join %>% filter(season==max(input$war_season)) %>% mutate(week=as.numeric(week)) %>% select(week))) %>%
                     mutate(season = as.factor(season),
                            week = as.factor(week)) %>%
                     group_by(mfl_id=player_id,season,week) %>%
@@ -57,7 +57,7 @@ compute_war <- function(f_years, f_week, weekly_join_war, weekly_join_def_war, w
         left_join(.,
                   ffscrapr::ff_playerscores(ffscrapr::mfl_connect(max(input$war_season), league_id = gsub("mfl", "", input$war_league)),
                                             season=max(input$war_season),
-                                            week=1:max(weekly_join %>% filter(season==max(input$war_season)) %>% mutate(week=as.numeric(week)) %>% select(week) %>% max())) %>%
+                                            week=1:max(weekly_join %>% filter(season==max(input$war_season)) %>% mutate(week=as.numeric(week)) %>% select(week))) %>%
                     mutate(season = as.factor(season),
                            week = as.factor(week)) %>%
                     group_by(mfl_id=player_id,season,week) %>%
